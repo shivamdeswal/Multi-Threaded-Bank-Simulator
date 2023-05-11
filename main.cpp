@@ -6,6 +6,7 @@
 #include <mutex>
 #include <condition_variable> //condition_variable works only with unique_lock<mutex>
 #include "headerFiles/allProjectFiles.h"
+using namespace std;
 
 CRITICAL_SECTION cs;
 // Abstract base class for a bank account //
@@ -17,6 +18,10 @@ class cBankAccount
         condition_variable cv; //condition_variable object cv to signal and wait on changes to the balance//
         cAccountNotification notify;
         cDraft* draft;
+        cFixedDeposite FdAccount;
+        cCreateAccount newAccount;
+        cLoan loan;
+        cAuthentication auth;
 
     public:
         cBankAccount(){}
@@ -25,12 +30,53 @@ class cBankAccount
             draft = new cDraft(500); // initialize overdraft limit
         }
 
+        bool vAuthentication();
+        void vCreateAccount();
+        void fixedDepositeAccount();
+        void applyForLoan();
         //Virtual Functions
         virtual void deposit(int amount) = 0; 
         virtual bool withdraw(int amount) = 0; 
         virtual int get_balance() = 0; 
         virtual void vTakeInput() =0;       
 };
+
+void cBankAccount ::applyForLoan()
+{
+    loan.takeInput();
+    cout<<"Monthly Payment is: "<<loan.monthlyPayment();
+}
+
+bool cBankAccount ::vAuthentication()
+{
+    string username;
+    string password;
+    bool flag;
+    cout << "Enter your username "<<endl;
+    cin>>username;
+    cout << "Enter your Password "<<endl;
+    cin >>password;
+    flag = auth.authenticate(username,password);
+    return flag;
+
+}
+
+void cBankAccount ::fixedDepositeAccount()
+{
+    cout<<"Thanks For Choosing Our Bank"<<endl;
+    FdAccount.vTakeInput();
+    FdAccount.vDisplay_maturityAmount();
+    FdAccount.vIncrease_Time();
+    FdAccount.vDisplay_maturityAmount();
+
+}
+
+void cBankAccount ::vCreateAccount()
+{
+    cout<<"Starting Formalaties"<<endl;
+    newAccount.openAccount();
+    newAccount.displayAccountInfo();
+}
 
 // Derived Class or saving Account //
 class cSavingAccount : public cBankAccount
@@ -46,6 +92,7 @@ class cSavingAccount : public cBankAccount
             unique_lock<mutex> lock(mtx);//This guarantees an unlocked status on destruction (even if not called explicitly)//
             balance += amount;
             notify.send_notification("Savings", "Deposit", amount, balance);
+
             cv.notify_all(); //signal all waiting thread and  atomically releases the mutex
             //Unblocks all threads currently waiting for this condition//
         }
@@ -53,11 +100,14 @@ class cSavingAccount : public cBankAccount
         bool withdraw(int amount) override
         {
             unique_lock<mutex> lock(mtx);
+
             while (balance < amount)
             {
+    
                 cv.wait(lock);// block current thread  the function automatically calls lck.unlock(), allowing other locked threads to .continue. //
                 InsufficientFundsException obj("Your Balance is Low");
             }
+
             if (!draft->overdraft_check(balance, amount))
             {
                 InsufficientFundsException obj("Your Balance is Low");
@@ -67,7 +117,9 @@ class cSavingAccount : public cBankAccount
             int fee = draft->overdraft_fee();
             balance -= fee; // deduct overdraft fee
             notify.send_notification("Savings", "Withdrawal", amount, balance);
+
             return true;
+
         }
     //it locks the mutex and returns the balance
         int get_balance() override
@@ -75,6 +127,7 @@ class cSavingAccount : public cBankAccount
             unique_lock<mutex> lock(mtx);
             return balance;
         }
+
         void vTakeInput() override{}
 };
 
@@ -127,8 +180,8 @@ class cCurrentAccount : public cBankAccount
             unique_lock<mutex> lock(mtx);
             return balance;
         }
-        void vTakeInput() override{}
 
+        void vTakeInput() override{}
 };
 
 class cNRIAccount : public cBankAccount 
@@ -223,22 +276,21 @@ void vTransactionTypes(cBankAccount *ptr)
                     cout<<"Please Enter Valid Choice"<<endl;
 
         }
-    } while (true);
 
+    } while (true);
 
 }
 
-int main() {
+int main() 
+{
+
     cBankAccount *ptr;
     string username, password;
     int iChoice;
     int initialBalance;
     bool flag =true;
-    cCreateAccount newAccount;
-    cFixedDeposite FdAccount;
     cCurrencyExchanger exchangeCurrency(74.50, 59.86, 102.79, 4.49, 91.62);
-    cLoan loan;
-    cAuthentication auth;
+
     do
     {
         cout<<"1.Create Account 2.Saving Accounts 3.Current Account 4.NRI Account"
@@ -252,20 +304,16 @@ int main() {
         {
 
             case 1:
-                    newAccount.openAccount();
-                    newAccount.displayAccountInfo();
+                    ptr->vCreateAccount();
                 break;
 
             case 2:
-                    cout<<"Enter initialBalance of Your Account"<<endl;
-                    cin>>initialBalance;
-                    ptr = new cSavingAccount(initialBalance);
-                    cout << "Enter your username "<<endl;
-                    cin>>username;
-                    cout << "Enter your Password "<<endl;
-                    cin >>password;
-                    if (auth.authenticate(username, password))
+
+                    if (ptr->vAuthentication())
                     {
+                        cout<<"Enter initialBalance of Your Account"<<endl;
+                        cin>>initialBalance;
+                        ptr = new cSavingAccount(initialBalance);
                         vTransactionTypes(ptr);
                     }
                     else
@@ -277,15 +325,11 @@ int main() {
                     break;
 
             case 3:
-                    cout<<"Enter initialBalance of Your Account"<<endl;
-                    cin>>initialBalance;
-                    ptr = new cCurrentAccount(initialBalance);
-                    cout << "Enter your username "<<endl;
-                    cin>>username;
-                    cout << "Enter your Password "<<endl;
-                    cin >>password;
-                    if (auth.authenticate(username, password))
+                    if (ptr->vAuthentication())
                     {
+                        cout<<"Enter initialBalance of Your Account"<<endl;
+                        cin>>initialBalance;
+                        ptr = new cCurrentAccount(initialBalance);
                         vTransactionTypes(ptr);
                     }
                     else
@@ -295,6 +339,7 @@ int main() {
                         return 1;
                     }
                     break;
+
             case 4:
                     cout<<"Enter initialBalance of Your Account"<<endl;
                     cin>>initialBalance;
@@ -304,15 +349,10 @@ int main() {
                     break;
                     
             case 5:
-                    cout << "Enter your username "<<endl;
-                    cin>>username;
-                    cout << "Enter your Password "<<endl;
-                    cin >>password;
-                    if (auth.authenticate(username, password))
+                    if (ptr->vAuthentication())
                     {
                         InitializeCriticalSection(&cs);
-                        loan.takeInput();
-                        cout<<"Monthly Payment is: "<<loan.monthlyPayment()<<endl;
+                        ptr->applyForLoan();
                         DeleteCriticalSection(&cs);
                     }
                     else
@@ -321,21 +361,22 @@ int main() {
                         InvalidCredentialsException obj("Invalid User-name and Password");
                         return 1;
                     }
+
                     break;
 
             case 6:
-                    FdAccount.vTakeInput();
-                    FdAccount.vDisplay_maturityAmount();
-                    FdAccount.vIncrease_Time();
-                    FdAccount.vDisplay_maturityAmount();
+                    ptr->fixedDepositeAccount();
                     break;
 
             case 7:
+                    cout<<"Welcome to Currency Exchange"<<endl;
+                    cout<<"Here is the Menu"<<endl;
                     exchangeCurrency.display_menu();
                     int choice;
                     cout<<"Enter Choice: "<<endl;
                     exchangeCurrency.exchange_currency(choice);
                     break;
+
             case 8:
                     flag=false;
                     break;
@@ -351,5 +392,3 @@ int main() {
 
     return 0;
 }
-
-//10 comments //343 loc's
